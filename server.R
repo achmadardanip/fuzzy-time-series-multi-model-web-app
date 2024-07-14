@@ -7,76 +7,6 @@ library(DT)
 library(shinythemes)
 library(bslib)
 library(rsconnect)
-
-# Define the UI
-ui <- fluidPage(
-  #theme = shinytheme("slate"),  # Apply a theme
-  theme = bs_theme(preset = "vapor"),
-  tags$head(
-    tags$style(HTML("
-      .dataTables_wrapper {
-        color: #E3E3E3;
-      }
-      table.dataTable thead th {
-        color: #E3E3E3;
-      }
-      table.dataTable tbody tr {
-        color: #E3E3E3;
-      }
-      table.dataTable tfoot th {
-        color: #E3E3E3;
-      },
-      .credits {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin-top: 10px;
-      }
-      .credits img {
-        width: 20px;
-        height: 20px;
-        vertical-align: middle;
-      }
-      .credits span {
-        margin-left: 5px;
-        margin-right: 15px;
-      }
-    "))
-  ),
-  titlePanel("Predictive Web App for Average Temperature Using a Multi-Model Fuzzy Time Series Algorithm"),
-  # Credits below the title
-  tags$div(
-    class = "credits",
-    tags$a(href="https://www.linkedin.com/in/achmadardanip/", target="_blank",
-           tags$img(src="https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png"),
-           tags$span("Achmad Ardani Prasha")
-    ),
-    tags$a(href="https://www.linkedin.com/in/clavinorachmadi/", target="_blank",
-           tags$img(src="https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png"),
-           tags$span("Clavino Ourizqi Rachmadi")
-    )
-  ),
-  sidebarLayout(
-    sidebarPanel(
-      fileInput("file", "Choose CSV File",
-                accept = c("text/csv", 
-                           "text/comma-separated-values,text/plain", 
-                           ".csv")),
-      tags$hr(),
-      numericInput("period", "Prediction Period (days):", min = 1, max = 30, value = 7),
-      selectInput("model", "Select Model:", choices = c("Stevenson Porter", "Markov Chain"))
-    ),
-    mainPanel(
-      tabsetPanel(
-        tabPanel("Plot", plotOutput("plot")),
-        tabPanel("Prediction", DT::dataTableOutput("prediction_table")),
-        tabPanel("Accuracy", tableOutput("accuracy")),
-        tabPanel("Comparison Plot", plotOutput("comparison_plot"))
-      )
-    )
-  )
-)
-
 # Define the server logic
 server <- function(input, output) {
   bs_themer()
@@ -252,7 +182,7 @@ server <- function(input, output) {
       }
       
       datapakai <- data$tavg[-1]
-      galat <- abs(t - datapakai)
+      galat <- abs(datapakai - t )
       
       prediction_dates <- seq(min(data$date) + 1, by = "day", length.out = length(t))
       tabel <- data.frame(Date = format(prediction_dates, "%d-%m-%Y"), Actual = datapakai, Predicted = t, Error = galat)
@@ -364,11 +294,13 @@ server <- function(input, output) {
       tabel_prediksi <- data.frame(date = datauji_excluded$date, datapakai, ramal, adj.forecast, adj.forecast2)
       periode_peramalan <- input$period
       ramalan_7_hari <- forecast_ftsmc(data = adj.forecast2, n.tengah = n.tengah, bobot = bobot, L = L, box1 = box1, periode = periode_peramalan)
-      tabel2_new <- rbind(tabel2, data.frame(datapakai = NA, ramal = NA, adj.forecast = NA, adj.forecast2 = ramalan_7_hari))
-      
+      tabel2_new <- rbind(tabel2, data.frame(datapakai=NA, ramal=NA, adj.forecast=NA, adj.forecast2=ramalan_7_hari))
       tanggal_terakhir <- max(tanggal)
       tanggal_lanjut <- seq(tanggal_terakhir + 1, by = "day", length.out = nrow(tabel2_new) - length(tanggal))
       tabel2_new$tanggal <- c(tanggal, tanggal_lanjut)
+      colnames(tabel2_new) <- c("Actual", "Initial Forecast", "Adjusted Forecast", "Final Adjusted Forecast", "Date")
+      tabel2_new$Error <- abs(tabel2_new$Actual - tabel2_new$`Final Adjusted Forecast`)
+      tabel2_new <- tabel2_new[, c("Date", "Actual", "Initial Forecast", "Adjusted Forecast", "Final Adjusted Forecast", "Error")]
       tabel2_new
     }
   })
@@ -384,7 +316,7 @@ server <- function(input, output) {
       }
       
       datapakai <- data$tavg[-1]
-      galat <- abs(t - datapakai)
+      galat <- abs(datapakai - t)
       
       MSE <- mean(galat^2, na.rm = TRUE)
       MAE <- mean(abs(galat), na.rm = TRUE)
@@ -654,17 +586,19 @@ server <- function(input, output) {
       tabel_prediksi <- data.frame(date = datauji_excluded$date, datapakai, ramal, adj.forecast, adj.forecast2)
       periode_peramalan <- input$period
       ramalan_7_hari <- forecast_ftsmc(data = adj.forecast2, n.tengah = n.tengah, bobot = bobot, L = L, box1 = box1, periode = periode_peramalan)
-      tabel2_new <- rbind(tabel2, data.frame(datapakai = NA, ramal = NA, adj.forecast = NA, adj.forecast2 = ramalan_7_hari))
+      tabel2_new <- rbind(tabel2, data.frame(datapakai=NA, ramal=NA, adj.forecast=NA, adj.forecast2=ramalan_7_hari))
       
       tanggal_terakhir <- max(tanggal)
       tanggal_lanjut <- seq(tanggal_terakhir + 1, by = "day", length.out = nrow(tabel2_new) - length(tanggal))
       tabel2_new$tanggal <- c(tanggal, tanggal_lanjut)
+      colnames(tabel2_new) <- c("Actual", "Initial Forecast", "Adjusted Forecast", "Final Adjusted Forecast", "Date")
+      tabel2_new$Error <- abs(tabel2_new$Actual - tabel2_new$`Final Adjusted Forecast`)
+      tabel2_new <- tabel2_new[, c("Date", "Actual", "Initial Forecast", "Adjusted Forecast", "Final Adjusted Forecast", "Error")]
       tabel2_new
-      
       # Convert date columns to Date format if not already done
       datauji_excluded <- datauji[-1,]
       datauji_excluded$date <- as.Date(datauji_excluded$date, format = "%d-%m-%Y")
-      tabel2_new$tanggal <- as.Date(tabel2_new$tanggal, format = "%Y-%m-%d")
+      tabel2_new$Date <- as.Date(tabel2_new$Date, format = "%Y-%m-%d")
       # Aggregate data by month for better readability
       monthly_data_actual <- datauji_excluded %>%
         mutate(month = floor_date(date, "month")) %>%
@@ -672,9 +606,9 @@ server <- function(input, output) {
         summarize(monthly_avg_temp = mean(tavg, na.rm = TRUE))
       
       monthly_data_predicted <- tabel2_new %>%
-        mutate(month = floor_date(tanggal, "month")) %>%
+        mutate(month = floor_date(Date, "month")) %>%
         group_by(month) %>%
-        summarize(monthly_avg_temp = mean(adj.forecast2, na.rm = TRUE))
+        summarize(monthly_avg_temp = mean(`Final Adjusted Forecast`, na.rm = TRUE))
       
       # Combine actual and predicted data
       combined_data <- bind_rows(
@@ -692,7 +626,7 @@ server <- function(input, output) {
              color = "Type") +
         theme_minimal() +
         scale_x_date(date_breaks = "1 year", date_labels = "%Y") +  # Set x-axis breaks every year
-        theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis 
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels
     }
   })
 }
@@ -744,6 +678,3 @@ forecast_ftsmc <- function(data, n.tengah, bobot, L, box1, periode) {
   # Mengembalikan hasil ramalan
   return(ramal[(length(data) + 1):(length(data) + periode)])
 }
-
-# Run the application 
-shinyApp(ui = ui, server = server)
